@@ -195,6 +195,59 @@
       font-weight: 800;
     }
 
+    .section-title {
+      margin: 16px 0 8px;
+      color: var(--strong);
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .naming-row {
+      display: grid;
+      grid-template-columns: 1fr 102px;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fbfcfe;
+    }
+
+    .naming-row + .naming-row {
+      margin-top: 10px;
+    }
+
+    .naming-row label {
+      color: var(--strong);
+      font-weight: 800;
+    }
+
+    .naming-row input {
+      width: 100%;
+      min-width: 0;
+      border: 1px solid #cdd6e2;
+      border-radius: 6px;
+      padding: 8px 9px;
+      color: var(--strong);
+      background: #fff;
+      font-weight: 800;
+    }
+
+    .naming-row input[type="number"] {
+      text-align: right;
+    }
+
+    .example {
+      margin-top: 9px;
+      padding: 9px 10px;
+      border-radius: 6px;
+      background: var(--panel-2);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      font-weight: 700;
+    }
+
     .hint {
       margin: 10px 0 0;
       color: var(--muted);
@@ -486,6 +539,17 @@
         </div>
         <p class="hint">These are quality resolutions. Medium and Low are reduced to that detail level, softened, then exported at the same size as High so the quality difference is visible.</p>
 
+        <div class="section-title">File names</div>
+        <div class="naming-row">
+          <label for="nameCode">Code</label>
+          <input id="nameCode" type="text" value="MF" maxlength="24" aria-label="Output file code">
+        </div>
+        <div class="naming-row">
+          <label for="startNumber">Start number</label>
+          <input id="startNumber" type="number" min="1" max="9999" step="1" value="1" aria-label="Starting image number">
+        </div>
+        <div class="example" id="namingExample">Example: MF 1 - High.png</div>
+
         <div class="actions">
           <button class="btn primary wide" id="processBtn" type="button" disabled>Process images</button>
           <button class="btn secondary" id="clearBtn" type="button">Clear</button>
@@ -525,6 +589,9 @@
       const progressEl = document.getElementById("progress");
       const resultsArea = document.getElementById("resultsArea");
       const countEl = document.getElementById("count");
+      const nameCodeInput = document.getElementById("nameCode");
+      const startNumberInput = document.getElementById("startNumber");
+      const namingExample = document.getElementById("namingExample");
 
       let selectedFiles = [];
       let outputs = [];
@@ -540,16 +607,33 @@
         progressEl.value = Math.max(0, Math.min(100, value));
       }
 
-      function cleanFileName(name) {
-        const base = name.replace(/\.[^.]+$/, "");
-        const cleaned = base.replace(/[^\w.-]+/g, "_").replace(/^_+|_+$/g, "");
-        return cleaned || "image";
+      function cleanNamePart(value) {
+        const cleaned = value
+          .replace(/[<>:"/\\|?*\u0000-\u001f]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+        return cleaned || "Image";
       }
 
-      function uniqueBaseName(base, usedNames) {
-        const count = (usedNames.get(base) || 0) + 1;
-        usedNames.set(base, count);
-        return count === 1 ? base : `${base}_${count}`;
+      function readNaming() {
+        const code = cleanNamePart(nameCodeInput.value);
+        const parsedStart = Number.parseInt(startNumberInput.value, 10);
+        const startNumber = Number.isFinite(parsedStart) ? Math.max(1, Math.min(9999, parsedStart)) : 1;
+        startNumberInput.value = String(startNumber);
+        return { code, startNumber };
+      }
+
+      function makeOutputBaseName(naming, fileIndex) {
+        return `${naming.code} ${naming.startNumber + fileIndex}`;
+      }
+
+      function makeOutputFileName(baseName, label) {
+        return `${baseName} - ${label}.png`;
+      }
+
+      function updateNamingExample() {
+        const naming = readNaming();
+        namingExample.textContent = `Example: ${makeOutputFileName(makeOutputBaseName(naming, 0), "High")}`;
       }
 
       function readSizes() {
@@ -747,6 +831,8 @@
         }
 
         const sizes = readSizes();
+        const naming = readNaming();
+        updateNamingExample();
         outputs = [];
         revokePreviewUrls();
         resultsArea.className = "grid";
@@ -758,13 +844,13 @@
         let processed = 0;
         const failed = [];
         const totalSteps = selectedFiles.length * sizes.length;
-        const usedNames = new Map();
         const highLongestSide = sizes[0].size;
 
-        for (const file of selectedFiles) {
+        for (let fileIndex = 0; fileIndex < selectedFiles.length; fileIndex += 1) {
+          const file = selectedFiles[fileIndex];
           try {
             const img = await loadImage(file);
-            const base = uniqueBaseName(cleanFileName(file.name), usedNames);
+            const base = makeOutputBaseName(naming, fileIndex);
             const versions = [];
 
             for (const level of sizes) {
@@ -773,7 +859,7 @@
               const blob = await canvasToBlob(canvas);
               const item = {
                 folder: level.key,
-                fileName: `${base}_${level.key}.png`,
+                fileName: makeOutputFileName(base, level.label),
                 blob,
                 key: level.key,
                 label: level.label,
@@ -787,7 +873,7 @@
               setProgress(Math.round((processed / totalSteps) * 100));
             }
 
-            addResultCard(file.name, versions);
+            addResultCard(base, versions);
           } catch (error) {
             failed.push(file.name);
           }
@@ -963,6 +1049,8 @@
       }
 
       fileInput.addEventListener("change", (event) => chooseFiles(event.target.files));
+      nameCodeInput.addEventListener("input", updateNamingExample);
+      startNumberInput.addEventListener("input", updateNamingExample);
       processBtn.addEventListener("click", processImages);
       clearBtn.addEventListener("click", clearAll);
       downloadBtn.addEventListener("click", downloadZip);
@@ -981,6 +1069,8 @@
         dropzone.classList.remove("is-over");
         chooseFiles(event.dataTransfer.files);
       });
+
+      updateNamingExample();
     })();
   </script>
 </body>
