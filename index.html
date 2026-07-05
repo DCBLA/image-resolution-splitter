@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Image Resolution Splitter</title>
+  <title>Image Manipulation Tool</title>
   <style>
     :root {
       color-scheme: light;
@@ -94,11 +94,56 @@
       line-height: 1.4;
     }
 
+    .tabbar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .tab {
+      flex: 1;
+      min-height: 56px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      color: var(--muted);
+      font-weight: 800;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+    }
+
+    .tab .tab-sub {
+      display: block;
+      margin-top: 2px;
+      font-size: 12px;
+      font-weight: 700;
+      opacity: 0.75;
+    }
+
+    .tab:hover {
+      border-color: #aebace;
+    }
+
+    .tab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
     .workspace {
       display: grid;
       grid-template-columns: minmax(280px, 360px) 1fr;
       gap: 18px;
       align-items: start;
+    }
+
+    .tool {
+      display: none;
+    }
+
+    .tool.active {
+      display: grid;
     }
 
     .panel {
@@ -112,6 +157,13 @@
       padding: 18px;
       position: sticky;
       top: 18px;
+    }
+
+    .tool-intro {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
     }
 
     .dropzone {
@@ -135,7 +187,18 @@
     }
 
     .dropzone input {
-      display: none;
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+
+    .dropzone:focus-within {
+      border-color: var(--accent);
+      background: #f0f7ff;
+      color: var(--accent-dark);
     }
 
     .drop-main {
@@ -152,7 +215,6 @@
     }
 
     .settings {
-      margin-top: 16px;
       display: grid;
       gap: 10px;
     }
@@ -183,15 +245,18 @@
       display: inline-block;
     }
 
-    .swatch.high {
+    .swatch.high,
+    .swatch.neutral {
       background: #16805d;
     }
 
-    .swatch.medium {
+    .swatch.medium,
+    .swatch.over {
       background: #2478d4;
     }
 
-    .swatch.low {
+    .swatch.low,
+    .swatch.under {
       background: #b66a00;
     }
 
@@ -450,12 +515,19 @@
       overflow: hidden;
     }
 
-    .preview-frame img {
+    .preview-frame.zoom img {
       display: block;
       width: 100%;
       height: 100%;
       object-fit: cover;
       transform: scale(1.9);
+    }
+
+    .preview-frame.contain img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
     }
 
     .preview-meta {
@@ -473,15 +545,18 @@
       color: var(--strong);
     }
 
-    .preview-meta .level.high {
+    .preview-meta .level.high,
+    .preview-meta .level.neutral {
       color: var(--ok);
     }
 
-    .preview-meta .level.medium {
+    .preview-meta .level.medium,
+    .preview-meta .level.over {
       color: var(--accent-dark);
     }
 
-    .preview-meta .level.low {
+    .preview-meta .level.low,
+    .preview-meta .level.under {
       color: var(--warn);
     }
 
@@ -519,65 +594,141 @@
   <main class="shell">
     <div class="topbar">
       <div>
-        <h1>Image Resolution Splitter</h1>
-        <p class="subtitle">Drop in images, make three resolution versions, and download a tidy zip.</p>
+        <h1>Image Manipulation Tool</h1>
+        <p class="subtitle">Two separate tools: resolution degradation and exposure adjustment. Each tool has its own images and its own zip download. Everything runs locally in your browser.</p>
       </div>
       <div class="privacy">Local only</div>
     </div>
 
-    <div class="device-warning">Use this application on a computer. Image degradation does not seem to work reliably on phones.</div>
+    <div class="device-warning">Use this application on a computer. Image processing does not seem to work reliably on phones.</div>
 
-    <section class="workspace">
+    <div class="tabbar" role="tablist" aria-label="Tools">
+      <button class="tab active" id="tab-res" type="button" role="tab" aria-selected="true" aria-controls="tool-res">
+        Resolution
+        <span class="tab-sub">High / Medium / Low quality</span>
+      </button>
+      <button class="tab" id="tab-exp" type="button" role="tab" aria-selected="false" aria-controls="tool-exp">
+        Exposure
+        <span class="tab-sub">Neutral / Over / Under brightness</span>
+      </button>
+    </div>
+
+    <section class="workspace tool active" id="tool-res" role="tabpanel" aria-labelledby="tab-res">
       <aside class="panel controls">
-        <label class="dropzone" id="dropzone">
-          <input id="fileInput" type="file" accept="image/png,image/jpeg" multiple>
+        <p class="tool-intro">Makes three quality versions of each image. Medium and Low lose real detail; all three keep the same size on screen.</p>
+
+        <div class="section-title">1. Add images</div>
+        <label class="dropzone" id="res-dropzone">
+          <input id="res-fileInput" type="file" accept="image/png,image/jpeg" multiple>
           <span>
             <span class="drop-main">Choose images</span>
             <span class="drop-sub">or drag PNG/JPEG files here</span>
           </span>
         </label>
 
+        <div class="section-title">2. Resolution levels</div>
         <div class="settings" aria-label="Resolution settings">
           <label class="setting-row">
             <span class="setting-label"><span class="swatch high"></span>High</span>
-            <input id="sizeHigh" type="number" min="16" max="6000" step="1" value="1024" aria-label="High resolution longest side">
+            <input id="res-sizeHigh" type="number" min="16" max="6000" step="1" value="1024" aria-label="High resolution longest side">
           </label>
           <label class="setting-row">
             <span class="setting-label"><span class="swatch medium"></span>Medium</span>
-            <input id="sizeMedium" type="number" min="16" max="6000" step="1" value="720" aria-label="Medium resolution longest side">
+            <input id="res-sizeMedium" type="number" min="16" max="6000" step="1" value="720" aria-label="Medium resolution longest side">
           </label>
           <label class="setting-row">
             <span class="setting-label"><span class="swatch low"></span>Low</span>
-            <input id="sizeLow" type="number" min="16" max="6000" step="1" value="480" aria-label="Low resolution longest side">
+            <input id="res-sizeLow" type="number" min="16" max="6000" step="1" value="480" aria-label="Low resolution longest side">
           </label>
         </div>
-        <div class="section-title">File names</div>
+
+        <div class="section-title">3. File names</div>
         <div class="naming-row">
-          <label for="nameCode">Code</label>
-          <input id="nameCode" type="text" value="MF" maxlength="24" aria-label="Output file code">
+          <label for="res-nameCode">Code</label>
+          <input id="res-nameCode" type="text" value="MF" maxlength="24" aria-label="Output file code">
         </div>
         <div class="naming-row">
-          <label for="startNumber">Start number</label>
-          <input id="startNumber" type="number" min="1" max="9999" step="1" value="1" aria-label="Starting image number">
+          <label for="res-startNumber">Start number</label>
+          <input id="res-startNumber" type="number" min="1" max="9999" step="1" value="1" aria-label="Starting image number">
         </div>
-        <div class="example" id="namingExample">Example: MF 1 - High.png</div>
+        <div class="example" id="res-namingExample">Example: MF 1 - High.png</div>
 
         <div class="actions">
-          <button class="btn primary wide" id="processBtn" type="button" disabled>Process images</button>
-          <button class="btn secondary" id="clearBtn" type="button">Clear</button>
-          <button class="btn secondary" id="downloadBtn" type="button" disabled>Download zip</button>
+          <button class="btn primary wide" id="res-processBtn" type="button" disabled>Process images</button>
+          <button class="btn secondary" id="res-clearBtn" type="button">Clear</button>
+          <button class="btn secondary" id="res-downloadBtn" type="button" disabled>Download zip</button>
         </div>
 
-        <div class="status" id="status">No images selected.</div>
-        <progress id="progress" value="0" max="100"></progress>
+        <div class="status" id="res-status">No images selected.</div>
+        <progress id="res-progress" value="0" max="100"></progress>
       </aside>
 
       <section class="panel results">
         <div class="result-head">
-          <h2 class="result-title">Outputs</h2>
-          <div class="count" id="count">0 files</div>
+          <h2 class="result-title">Resolution outputs</h2>
+          <div class="count" id="res-count">0 files</div>
         </div>
-        <div id="resultsArea" class="empty">Processed images will appear here.</div>
+        <div id="res-resultsArea" class="empty">Processed images will appear here.</div>
+      </section>
+    </section>
+
+    <section class="workspace tool" id="tool-exp" role="tabpanel" aria-labelledby="tab-exp">
+      <aside class="panel controls">
+        <p class="tool-intro">Makes three brightness versions of each image by shifting its average brightness to a target value (0&ndash;255 scale). Images keep their original size.</p>
+
+        <div class="section-title">1. Add images</div>
+        <label class="dropzone" id="exp-dropzone">
+          <input id="exp-fileInput" type="file" accept="image/png,image/jpeg" multiple>
+          <span>
+            <span class="drop-main">Choose images</span>
+            <span class="drop-sub">or drag PNG/JPEG files here</span>
+          </span>
+        </label>
+
+        <div class="section-title">2. Brightness targets</div>
+        <div class="settings" aria-label="Exposure settings">
+          <label class="setting-row">
+            <span class="setting-label"><span class="swatch neutral"></span>Neutral</span>
+            <input id="exp-targetNeutral" type="number" min="1" max="255" step="1" value="123" aria-label="Neutral target mean brightness">
+          </label>
+          <label class="setting-row">
+            <span class="setting-label"><span class="swatch over"></span>Over</span>
+            <input id="exp-targetOver" type="number" min="1" max="255" step="1" value="195" aria-label="Over-exposed target mean brightness">
+          </label>
+          <label class="setting-row">
+            <span class="setting-label"><span class="swatch under"></span>Under</span>
+            <input id="exp-targetUnder" type="number" min="1" max="255" step="1" value="60" aria-label="Under-exposed target mean brightness">
+          </label>
+        </div>
+        <p class="hint">123 is a middle-gray anchor, 195 flags over-exposure, 60 flags under-exposure. Extreme targets can land slightly off because pixels stop at pure white and pure black.</p>
+
+        <div class="section-title">3. File names</div>
+        <div class="naming-row">
+          <label for="exp-nameCode">Code</label>
+          <input id="exp-nameCode" type="text" value="MF" maxlength="24" aria-label="Output file code">
+        </div>
+        <div class="naming-row">
+          <label for="exp-startNumber">Start number</label>
+          <input id="exp-startNumber" type="number" min="1" max="9999" step="1" value="1" aria-label="Starting image number">
+        </div>
+        <div class="example" id="exp-namingExample">Example: MF 1 - Neutral.png</div>
+
+        <div class="actions">
+          <button class="btn primary wide" id="exp-processBtn" type="button" disabled>Process images</button>
+          <button class="btn secondary" id="exp-clearBtn" type="button">Clear</button>
+          <button class="btn secondary" id="exp-downloadBtn" type="button" disabled>Download zip</button>
+        </div>
+
+        <div class="status" id="exp-status">No images selected.</div>
+        <progress id="exp-progress" value="0" max="100"></progress>
+      </aside>
+
+      <section class="panel results">
+        <div class="result-head">
+          <h2 class="result-title">Exposure outputs</h2>
+          <div class="count" id="exp-count">0 files</div>
+        </div>
+        <div id="exp-resultsArea" class="empty">Processed images will appear here.</div>
       </section>
     </section>
   </main>
@@ -585,39 +736,6 @@
   <script>
     (() => {
       "use strict";
-
-      const LEVELS = [
-        { key: "high", label: "High", inputId: "sizeHigh" },
-        { key: "medium", label: "Medium", inputId: "sizeMedium" },
-        { key: "low", label: "Low", inputId: "sizeLow" }
-      ];
-
-      const fileInput = document.getElementById("fileInput");
-      const dropzone = document.getElementById("dropzone");
-      const processBtn = document.getElementById("processBtn");
-      const clearBtn = document.getElementById("clearBtn");
-      const downloadBtn = document.getElementById("downloadBtn");
-      const statusEl = document.getElementById("status");
-      const progressEl = document.getElementById("progress");
-      const resultsArea = document.getElementById("resultsArea");
-      const countEl = document.getElementById("count");
-      const nameCodeInput = document.getElementById("nameCode");
-      const startNumberInput = document.getElementById("startNumber");
-      const namingExample = document.getElementById("namingExample");
-
-      let selectedFiles = [];
-      let outputs = [];
-      let previewUrls = [];
-
-      function setStatus(message, type = "") {
-        statusEl.className = type ? `status ${type}` : "status";
-        statusEl.innerHTML = message;
-      }
-
-      function setProgress(value, visible = true) {
-        progressEl.style.display = visible ? "block" : "none";
-        progressEl.value = Math.max(0, Math.min(100, value));
-      }
 
       function cleanNamePart(value) {
         const cleaned = value
@@ -627,76 +745,14 @@
         return cleaned || "Image";
       }
 
-      function readNaming() {
-        const code = cleanNamePart(nameCodeInput.value);
-        const parsedStart = Number.parseInt(startNumberInput.value, 10);
-        const startNumber = Number.isFinite(parsedStart) ? Math.max(1, Math.min(9999, parsedStart)) : 1;
-        startNumberInput.value = String(startNumber);
-        return { code, startNumber };
-      }
-
-      function makeOutputBaseName(naming, fileIndex) {
-        return `${naming.code} ${naming.startNumber + fileIndex}`;
-      }
-
-      function makeOutputFileName(baseName, label) {
-        return `${baseName} - ${label}.png`;
-      }
-
-      function updateNamingExample() {
-        const naming = readNaming();
-        namingExample.textContent = `Example: ${makeOutputFileName(makeOutputBaseName(naming, 0), "High")}`;
-      }
-
-      function readSizes() {
-        return LEVELS.map((level) => {
-          const input = document.getElementById(level.inputId);
-          const parsed = Number.parseInt(input.value, 10);
-          const size = Number.isFinite(parsed) ? Math.max(16, Math.min(6000, parsed)) : 16;
-          input.value = String(size);
-          return { ...level, size };
-        });
+      function escapeHtml(value) {
+        return value.replace(/[&<>"']/g, (ch) => (
+          { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]
+        ));
       }
 
       function isSupportedImage(file) {
         return file && (file.type === "image/png" || file.type === "image/jpeg");
-      }
-
-      function chooseFiles(fileList) {
-        const files = Array.from(fileList || []);
-        selectedFiles = files.filter(isSupportedImage);
-        const skipped = files.length - selectedFiles.length;
-        processBtn.disabled = selectedFiles.length === 0;
-        downloadBtn.disabled = true;
-        outputs = [];
-        revokePreviewUrls();
-        renderEmpty();
-
-        if (!files.length) {
-          setStatus("No images selected.");
-          return;
-        }
-
-        if (!selectedFiles.length) {
-          setStatus("No PNG or JPEG files were found.", "error");
-          return;
-        }
-
-        const skipText = skipped ? ` ${skipped} unsupported file${skipped === 1 ? "" : "s"} skipped.` : "";
-        const warning = selectedFiles.length > 60 ? " Large batches can use a lot of browser memory." : "";
-        setStatus(`<strong>${selectedFiles.length}</strong> image${selectedFiles.length === 1 ? "" : "s"} ready.${skipText}${warning}`, selectedFiles.length > 60 ? "warn" : "");
-        countEl.textContent = "0 files";
-        setProgress(0, false);
-      }
-
-      function revokePreviewUrls() {
-        previewUrls.forEach((url) => URL.revokeObjectURL(url));
-        previewUrls = [];
-      }
-
-      function renderEmpty() {
-        resultsArea.className = "empty";
-        resultsArea.textContent = "Processed images will appear here.";
       }
 
       function loadImage(file) {
@@ -725,6 +781,10 @@
             }
           }, "image/png");
         });
+      }
+
+      function nextFrame() {
+        return new Promise((resolve) => setTimeout(resolve, 0));
       }
 
       function targetDimensions(width, height, longestSide) {
@@ -761,150 +821,6 @@
         ctx.drawImage(canvas, 0, 0);
         ctx.filter = "none";
         return softened;
-      }
-
-      function renderImage(img, level, highLongestSide) {
-        const sourceWidth = img.naturalWidth || img.width;
-        const sourceHeight = img.naturalHeight || img.height;
-        const outputSize = targetDimensions(sourceWidth, sourceHeight, highLongestSide);
-        const blurRadius = level.key === "high" ? 0 : Math.max(0.75, ((highLongestSide / level.size) - 1) * 1.8);
-
-        if (level.key === "high" || level.size >= highLongestSide) {
-          return {
-            canvas: drawResized(img, outputSize.width, outputSize.height),
-            detail: `${highLongestSide}px quality`
-          };
-        }
-
-        const sampleSize = targetDimensions(sourceWidth, sourceHeight, level.size);
-        const sampled = drawResized(img, sampleSize.width, sampleSize.height);
-        const enlarged = drawResized(sampled, outputSize.width, outputSize.height);
-        return {
-          canvas: applySoftness(enlarged, blurRadius),
-          detail: `${level.size}px quality`
-        };
-      }
-
-      function makePreview(blob) {
-        const url = URL.createObjectURL(blob);
-        previewUrls.push(url);
-        return url;
-      }
-
-      function ensureResultsGrid() {
-        if (resultsArea.className !== "grid") {
-          resultsArea.className = "grid";
-          resultsArea.textContent = "";
-        }
-      }
-
-      function addResultCard(fileName, versions) {
-        ensureResultsGrid();
-        const card = document.createElement("article");
-        card.className = "file-card";
-
-        const title = document.createElement("div");
-        title.className = "file-name";
-        title.textContent = fileName;
-        card.appendChild(title);
-
-        const row = document.createElement("div");
-        row.className = "preview-row";
-        card.appendChild(row);
-
-        versions.forEach((version) => {
-          const preview = document.createElement("div");
-          preview.className = "preview";
-
-          const frame = document.createElement("div");
-          frame.className = "preview-frame";
-
-          const img = document.createElement("img");
-          img.src = makePreview(version.blob);
-          img.alt = `${version.label} version of ${fileName}`;
-          frame.appendChild(img);
-
-          const meta = document.createElement("div");
-          meta.className = "preview-meta";
-          meta.innerHTML = `<span class="level ${version.key}">${version.label}</span><span>${version.detail}</span>`;
-
-          preview.appendChild(frame);
-          preview.appendChild(meta);
-          row.appendChild(preview);
-        });
-
-        resultsArea.appendChild(card);
-      }
-
-      async function processImages() {
-        if (!selectedFiles.length) {
-          setStatus("Choose PNG or JPEG images first.", "error");
-          return;
-        }
-
-        const sizes = readSizes();
-        const naming = readNaming();
-        updateNamingExample();
-        outputs = [];
-        revokePreviewUrls();
-        resultsArea.className = "grid";
-        resultsArea.textContent = "";
-        downloadBtn.disabled = true;
-        processBtn.disabled = true;
-        setProgress(0);
-
-        let processed = 0;
-        const failed = [];
-        const totalSteps = selectedFiles.length * sizes.length;
-        const highLongestSide = sizes[0].size;
-
-        for (let fileIndex = 0; fileIndex < selectedFiles.length; fileIndex += 1) {
-          const file = selectedFiles[fileIndex];
-          try {
-            const img = await loadImage(file);
-            const base = makeOutputBaseName(naming, fileIndex);
-            const versions = [];
-
-            for (const level of sizes) {
-              const rendered = renderImage(img, level, highLongestSide);
-              const canvas = rendered.canvas;
-              const blob = await canvasToBlob(canvas);
-              const item = {
-                folder: level.key,
-                fileName: makeOutputFileName(base, level.label),
-                blob,
-                key: level.key,
-                label: level.label,
-                detail: rendered.detail,
-                width: canvas.width,
-                height: canvas.height
-              };
-              outputs.push(item);
-              versions.push(item);
-              processed += 1;
-              setProgress(Math.round((processed / totalSteps) * 100));
-            }
-
-            addResultCard(base, versions);
-          } catch (error) {
-            failed.push(file.name);
-          }
-        }
-
-        processBtn.disabled = false;
-        downloadBtn.disabled = outputs.length === 0;
-        countEl.textContent = `${outputs.length} output${outputs.length === 1 ? "" : "s"}`;
-        setProgress(100, outputs.length > 0);
-
-        if (outputs.length && failed.length) {
-          setStatus(`<strong>${outputs.length}</strong> outputs ready. ${failed.length} file${failed.length === 1 ? "" : "s"} could not be processed.`, "warn");
-        } else if (outputs.length) {
-          setStatus(`<strong>${outputs.length}</strong> outputs ready for download.`);
-        } else {
-          renderEmpty();
-          setStatus("No outputs were created.", "error");
-          setProgress(0, false);
-        }
       }
 
       async function blobToUint8Array(blob) {
@@ -1012,77 +928,455 @@
         return new Blob([...localParts, ...centralParts, new Uint8Array(end)], { type: "application/zip" });
       }
 
-      async function downloadZip() {
-        if (!outputs.length) {
-          setStatus("Process images before downloading.", "error");
-          return;
+      // BT.601 luma of one pixel, matching PIL's convert("L") weighting.
+      function pixelLuma(r, g, b) {
+        return (r * 299 + g * 587 + b * 114) / 1000;
+      }
+
+      function meanLuma(data) {
+        let sum = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          sum += pixelLuma(data[i], data[i + 1], data[i + 2]);
+        }
+        const pixels = data.length / 4;
+        return pixels > 0 ? sum / pixels : 0;
+      }
+
+      function setupTool(prefix, config) {
+        const fileInput = document.getElementById(`${prefix}-fileInput`);
+        const dropzone = document.getElementById(`${prefix}-dropzone`);
+        const processBtn = document.getElementById(`${prefix}-processBtn`);
+        const clearBtn = document.getElementById(`${prefix}-clearBtn`);
+        const downloadBtn = document.getElementById(`${prefix}-downloadBtn`);
+        const statusEl = document.getElementById(`${prefix}-status`);
+        const progressEl = document.getElementById(`${prefix}-progress`);
+        const resultsArea = document.getElementById(`${prefix}-resultsArea`);
+        const countEl = document.getElementById(`${prefix}-count`);
+        const nameCodeInput = document.getElementById(`${prefix}-nameCode`);
+        const startNumberInput = document.getElementById(`${prefix}-startNumber`);
+        const namingExample = document.getElementById(`${prefix}-namingExample`);
+
+        let selectedFiles = [];
+        let outputs = [];
+        let previewUrls = [];
+        let busy = false;
+
+        function setStatus(message, type = "") {
+          statusEl.className = type ? `status ${type}` : "status";
+          statusEl.innerHTML = message;
         }
 
-        downloadBtn.disabled = true;
-        setStatus("Building zip...");
-        setProgress(0);
+        function setProgress(value, visible = true) {
+          progressEl.style.display = visible ? "block" : "none";
+          progressEl.value = Math.max(0, Math.min(100, value));
+        }
 
-        const entries = [];
-        for (let i = 0; i < outputs.length; i += 1) {
-          const item = outputs[i];
-          entries.push({
-            path: `${item.folder}/${item.fileName}`,
-            data: await blobToUint8Array(item.blob)
+        function readNaming() {
+          const code = cleanNamePart(nameCodeInput.value);
+          const parsedStart = Number.parseInt(startNumberInput.value, 10);
+          const startNumber = Number.isFinite(parsedStart) ? Math.max(1, Math.min(9999, parsedStart)) : 1;
+          return { code, startNumber };
+        }
+
+        function makeOutputBaseName(naming, fileIndex) {
+          return `${naming.code} ${naming.startNumber + fileIndex}`;
+        }
+
+        function makeOutputFileName(baseName, label) {
+          return `${baseName} - ${label}.png`;
+        }
+
+        function updateNamingExample() {
+          const naming = readNaming();
+          namingExample.textContent = `Example: ${makeOutputFileName(makeOutputBaseName(naming, 0), config.levels[0].label)}`;
+        }
+
+        function readLevels() {
+          return config.levels.map((level) => {
+            const input = document.getElementById(`${prefix}-${level.inputId}`);
+            const parsed = Number.parseInt(input.value, 10);
+            const value = Number.isFinite(parsed)
+              ? Math.max(config.minValue, Math.min(config.maxValue, parsed))
+              : config.minValue;
+            input.value = String(value);
+            return { ...level, value };
           });
-          setProgress(Math.round(((i + 1) / outputs.length) * 85));
         }
 
-        const zipBlob = makeZip(entries);
-        const url = URL.createObjectURL(zipBlob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = "image-resolution-outputs.zip";
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(url);
+        function revokePreviewUrls() {
+          previewUrls.forEach((url) => URL.revokeObjectURL(url));
+          previewUrls = [];
+        }
 
-        setProgress(100);
-        setStatus(`<strong>${outputs.length}</strong> outputs zipped.`);
-        downloadBtn.disabled = false;
+        function renderEmpty() {
+          resultsArea.className = "empty";
+          resultsArea.textContent = "Processed images will appear here.";
+        }
+
+        function chooseFiles(fileList) {
+          if (busy) {
+            return;
+          }
+          const files = Array.from(fileList || []);
+          selectedFiles = files.filter(isSupportedImage);
+          const skipped = files.length - selectedFiles.length;
+          processBtn.disabled = selectedFiles.length === 0;
+          downloadBtn.disabled = true;
+          outputs = [];
+          revokePreviewUrls();
+          renderEmpty();
+          countEl.textContent = "0 files";
+
+          if (!files.length) {
+            setStatus("No images selected.");
+            return;
+          }
+
+          if (!selectedFiles.length) {
+            setStatus("No PNG or JPEG files were found.", "error");
+            return;
+          }
+
+          const skipText = skipped ? ` ${skipped} unsupported file${skipped === 1 ? "" : "s"} skipped.` : "";
+          const warning = selectedFiles.length > 60 ? " Large batches can use a lot of browser memory." : "";
+          setStatus(`<strong>${selectedFiles.length}</strong> image${selectedFiles.length === 1 ? "" : "s"} ready.${skipText}${warning}`, selectedFiles.length > 60 ? "warn" : "");
+          setProgress(0, false);
+        }
+
+        function makePreview(blob) {
+          const url = URL.createObjectURL(blob);
+          previewUrls.push(url);
+          return url;
+        }
+
+        function ensureResultsGrid() {
+          if (resultsArea.className !== "grid") {
+            resultsArea.className = "grid";
+            resultsArea.textContent = "";
+          }
+        }
+
+        function addResultCard(fileName, versions) {
+          ensureResultsGrid();
+          const card = document.createElement("article");
+          card.className = "file-card";
+
+          const title = document.createElement("div");
+          title.className = "file-name";
+          title.textContent = fileName;
+          card.appendChild(title);
+
+          const row = document.createElement("div");
+          row.className = "preview-row";
+          card.appendChild(row);
+
+          versions.forEach((version) => {
+            const preview = document.createElement("div");
+            preview.className = "preview";
+
+            const frame = document.createElement("div");
+            frame.className = `preview-frame ${config.previewFit}`;
+
+            const img = document.createElement("img");
+            img.src = makePreview(version.blob);
+            img.alt = `${version.label} version of ${fileName}`;
+            frame.appendChild(img);
+
+            const meta = document.createElement("div");
+            meta.className = "preview-meta";
+            meta.innerHTML = `<span class="level ${version.key}">${version.label}</span><span>${version.detail}</span>`;
+
+            preview.appendChild(frame);
+            preview.appendChild(meta);
+            row.appendChild(preview);
+          });
+
+          resultsArea.appendChild(card);
+        }
+
+        async function processImages() {
+          if (busy) {
+            return;
+          }
+
+          if (!selectedFiles.length) {
+            setStatus("Choose PNG or JPEG images first.", "error");
+            return;
+          }
+
+          busy = true;
+          clearBtn.disabled = true;
+          fileInput.disabled = true;
+          const levels = readLevels();
+          const naming = readNaming();
+          updateNamingExample();
+          outputs = [];
+          revokePreviewUrls();
+          resultsArea.className = "grid";
+          resultsArea.textContent = "";
+          downloadBtn.disabled = true;
+          processBtn.disabled = true;
+          setProgress(0);
+          setStatus("Processing...");
+
+          let processed = 0;
+          const failed = [];
+          const totalSteps = selectedFiles.length * levels.length;
+
+          for (let fileIndex = 0; fileIndex < selectedFiles.length; fileIndex += 1) {
+            const file = selectedFiles[fileIndex];
+            try {
+              const img = await loadImage(file);
+              const context = config.prepare(img);
+              const base = makeOutputBaseName(naming, fileIndex);
+              const versions = [];
+
+              for (const level of levels) {
+                const rendered = config.renderLevel(context, level, levels);
+                const canvas = rendered.canvas;
+                const blob = await canvasToBlob(canvas);
+                const item = {
+                  folder: level.key,
+                  fileName: makeOutputFileName(base, level.label),
+                  blob,
+                  key: level.key,
+                  label: level.label,
+                  detail: rendered.detail,
+                  width: canvas.width,
+                  height: canvas.height
+                };
+                outputs.push(item);
+                versions.push(item);
+                processed += 1;
+                setProgress(Math.round((processed / totalSteps) * 100));
+                await nextFrame();
+              }
+
+              addResultCard(base, versions);
+            } catch (error) {
+              failed.push(file.name);
+            }
+          }
+
+          busy = false;
+          clearBtn.disabled = false;
+          fileInput.disabled = false;
+          processBtn.disabled = false;
+          downloadBtn.disabled = outputs.length === 0;
+          countEl.textContent = `${outputs.length} output${outputs.length === 1 ? "" : "s"}`;
+          setProgress(100, outputs.length > 0);
+
+          if (outputs.length && failed.length) {
+            setStatus(`<strong>${outputs.length}</strong> outputs ready. Could not process: ${failed.map(escapeHtml).join(", ")}.`, "warn");
+          } else if (outputs.length) {
+            setStatus(`<strong>${outputs.length}</strong> outputs ready for download.`);
+          } else {
+            renderEmpty();
+            const failText = failed.length ? ` Could not process: ${failed.map(escapeHtml).join(", ")}.` : "";
+            setStatus(`No outputs were created.${failText}`, "error");
+            setProgress(0, false);
+          }
+        }
+
+        async function downloadZip() {
+          if (!outputs.length) {
+            setStatus("Process images before downloading.", "error");
+            return;
+          }
+
+          downloadBtn.disabled = true;
+          setStatus("Building zip...");
+          setProgress(0);
+
+          const entries = [];
+          for (let i = 0; i < outputs.length; i += 1) {
+            const item = outputs[i];
+            entries.push({
+              path: `${item.folder}/${item.fileName}`,
+              data: await blobToUint8Array(item.blob)
+            });
+            setProgress(Math.round(((i + 1) / outputs.length) * 85));
+          }
+
+          const zipBlob = makeZip(entries);
+          const url = URL.createObjectURL(zipBlob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = config.zipName;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          URL.revokeObjectURL(url);
+
+          setProgress(100);
+          setStatus(`<strong>${outputs.length}</strong> outputs zipped.`);
+          downloadBtn.disabled = false;
+        }
+
+        function clearAll() {
+          if (busy) {
+            return;
+          }
+          selectedFiles = [];
+          outputs = [];
+          fileInput.value = "";
+          processBtn.disabled = true;
+          downloadBtn.disabled = true;
+          countEl.textContent = "0 files";
+          revokePreviewUrls();
+          renderEmpty();
+          setProgress(0, false);
+          setStatus("No images selected.");
+        }
+
+        fileInput.addEventListener("change", (event) => chooseFiles(event.target.files));
+        nameCodeInput.addEventListener("input", updateNamingExample);
+        startNumberInput.addEventListener("input", updateNamingExample);
+        startNumberInput.addEventListener("change", () => {
+          startNumberInput.value = String(readNaming().startNumber);
+          updateNamingExample();
+        });
+        processBtn.addEventListener("click", processImages);
+        clearBtn.addEventListener("click", clearAll);
+        downloadBtn.addEventListener("click", downloadZip);
+
+        dropzone.addEventListener("dragover", (event) => {
+          event.preventDefault();
+          dropzone.classList.add("is-over");
+        });
+
+        dropzone.addEventListener("dragleave", () => {
+          dropzone.classList.remove("is-over");
+        });
+
+        dropzone.addEventListener("drop", (event) => {
+          event.preventDefault();
+          dropzone.classList.remove("is-over");
+          chooseFiles(event.dataTransfer.files);
+        });
+
+        updateNamingExample();
       }
 
-      function clearAll() {
-        selectedFiles = [];
-        outputs = [];
-        fileInput.value = "";
-        processBtn.disabled = true;
-        downloadBtn.disabled = true;
-        countEl.textContent = "0 files";
-        revokePreviewUrls();
-        renderEmpty();
-        setProgress(0, false);
-        setStatus("No images selected.");
-      }
+      // --- Resolution tool ---
+      // Medium/Low are downsampled to their longest-side size, enlarged back
+      // to the High output size, then softened, so the detail loss is baked in.
+      setupTool("res", {
+        levels: [
+          { key: "high", label: "High", inputId: "sizeHigh" },
+          { key: "medium", label: "Medium", inputId: "sizeMedium" },
+          { key: "low", label: "Low", inputId: "sizeLow" }
+        ],
+        minValue: 16,
+        maxValue: 6000,
+        zipName: "image-resolution-outputs.zip",
+        previewFit: "zoom",
+        prepare(img) {
+          return {
+            img,
+            width: img.naturalWidth || img.width,
+            height: img.naturalHeight || img.height
+          };
+        },
+        renderLevel(context, level, levels) {
+          const highLongestSide = levels[0].value;
+          const outputSize = targetDimensions(context.width, context.height, highLongestSide);
+          const blurRadius = level.key === "high" ? 0 : Math.max(0.75, ((highLongestSide / level.value) - 1) * 1.8);
 
-      fileInput.addEventListener("change", (event) => chooseFiles(event.target.files));
-      nameCodeInput.addEventListener("input", updateNamingExample);
-      startNumberInput.addEventListener("input", updateNamingExample);
-      processBtn.addEventListener("click", processImages);
-      clearBtn.addEventListener("click", clearAll);
-      downloadBtn.addEventListener("click", downloadZip);
+          if (level.key === "high" || level.value >= highLongestSide) {
+            return {
+              canvas: drawResized(context.img, outputSize.width, outputSize.height),
+              detail: `${highLongestSide}px quality`
+            };
+          }
 
-      dropzone.addEventListener("dragover", (event) => {
-        event.preventDefault();
-        dropzone.classList.add("is-over");
+          const sampleSize = targetDimensions(context.width, context.height, level.value);
+          const sampled = drawResized(context.img, sampleSize.width, sampleSize.height);
+          const enlarged = drawResized(sampled, outputSize.width, outputSize.height);
+          return {
+            canvas: applySoftness(enlarged, blurRadius),
+            detail: `${level.value}px quality`
+          };
+        }
       });
 
-      dropzone.addEventListener("dragleave", () => {
-        dropzone.classList.remove("is-over");
+      // --- Exposure tool ---
+      // Mirrors the PIL reference: factor = target_mean / current_mean of the
+      // BT.601 luma, then every RGB channel is multiplied by that factor and
+      // clamped, like ImageEnhance.Brightness. Alpha is left untouched.
+      setupTool("exp", {
+        levels: [
+          { key: "neutral", label: "Neutral", inputId: "targetNeutral" },
+          { key: "over", label: "Over", inputId: "targetOver" },
+          { key: "under", label: "Under", inputId: "targetUnder" }
+        ],
+        minValue: 1,
+        maxValue: 255,
+        zipName: "image-exposure-outputs.zip",
+        previewFit: "contain",
+        prepare(img) {
+          const width = img.naturalWidth || img.width;
+          const height = img.naturalHeight || img.height;
+          const canvas = drawResized(img, width, height);
+          const ctx = canvas.getContext("2d");
+          const imageData = ctx.getImageData(0, 0, width, height);
+          return {
+            width,
+            height,
+            imageData,
+            mean: meanLuma(imageData.data)
+          };
+        },
+        renderLevel(context, level) {
+          const factor = context.mean > 0 ? level.value / context.mean : 0;
+          const src = context.imageData.data;
+
+          const canvas = document.createElement("canvas");
+          canvas.width = context.width;
+          canvas.height = context.height;
+          const ctx = canvas.getContext("2d");
+          const output = ctx.createImageData(context.width, context.height);
+          const dst = output.data;
+
+          let lumaSum = 0;
+          for (let i = 0; i < src.length; i += 4) {
+            dst[i] = src[i] * factor;
+            dst[i + 1] = src[i + 1] * factor;
+            dst[i + 2] = src[i + 2] * factor;
+            dst[i + 3] = src[i + 3];
+            lumaSum += pixelLuma(dst[i], dst[i + 1], dst[i + 2]);
+          }
+          ctx.putImageData(output, 0, 0);
+
+          const pixels = src.length / 4;
+          const achieved = pixels > 0 ? lumaSum / pixels : 0;
+          return {
+            canvas,
+            detail: `mean ${achieved.toFixed(1)} (target ${level.value})`
+          };
+        }
       });
 
-      dropzone.addEventListener("drop", (event) => {
-        event.preventDefault();
-        dropzone.classList.remove("is-over");
-        chooseFiles(event.dataTransfer.files);
-      });
+      // A drop that misses a dropzone must not navigate the page away.
+      document.addEventListener("dragover", (event) => event.preventDefault());
+      document.addEventListener("drop", (event) => event.preventDefault());
 
-      updateNamingExample();
+      // --- Tabs ---
+      const tabs = [
+        { button: document.getElementById("tab-res"), panel: document.getElementById("tool-res") },
+        { button: document.getElementById("tab-exp"), panel: document.getElementById("tool-exp") }
+      ];
+
+      tabs.forEach((tab) => {
+        tab.button.addEventListener("click", () => {
+          tabs.forEach((other) => {
+            const active = other === tab;
+            other.button.classList.toggle("active", active);
+            other.button.setAttribute("aria-selected", active ? "true" : "false");
+            other.panel.classList.toggle("active", active);
+          });
+        });
+      });
     })();
   </script>
 </body>
